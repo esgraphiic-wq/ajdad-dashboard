@@ -25,7 +25,7 @@
 <body>
 <div class="box" id="box"><div class="sp"></div>جاري تحميل غرفة متابعة الإعلانات…</div>
 <script>
-/* الصفحة دي بتجيب شكل الداشبورد وأرقامه من سكريبت جوجل «غرفة متابعة الإعلانات» من غير ما تبعت حساب جوجل،
+/* الصفحة دي بتجيب شكل الداشبورد من source/dashboard.html، وأرقامه من سكريبت جوجل «غرفة متابعة الإعلانات» من غير ما تبعت حساب جوجل،
    فبتفتح عادي حتى لو المتصفح فيه أكتر من حساب جوجل. أي تعديل في الداشبورد على جوجل بيظهر هنا لوحده. */
 var API = 'https://script.google.com/macros/s/AKfycbxIzKBDRqOccmGXvioilFoTTBNqFJxDvU0S6RaToQtH9yMShzADnJzXSNLJx3fECV7xwA/exec';
 var SHIM = '<script>(function(){var API=' + JSON.stringify(API) + ';var MAP={getData:"data",pullSalla:"pull"};' +
@@ -45,7 +45,7 @@ if ('serviceWorker' in navigator) { try { navigator.serviceWorker.register('sw.j
 function fail(){
   document.getElementById('box').innerHTML = 'ما قدرنا نحمّل الداشبورد. تأكد من الإنترنت وجرّب تاني.<br><button onclick="location.reload()">حاول تاني</button>';
 }
-fetch(API + '?api=html&t=' + Date.now(), {credentials: 'omit'})
+fetch('source/dashboard.html?t=' + Date.now(), {cache: 'no-store'})
   .then(function(r){ if(!r.ok) throw new Error(r.status); return r.text(); })
   .then(function(html){
     if (html.indexOf('<html') < 0) throw new Error('bad');

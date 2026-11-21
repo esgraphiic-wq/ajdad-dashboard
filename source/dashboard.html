@@ -476,7 +476,7 @@ function renderSales(s,a){
   const roas=s&&s.sales!=null&&a.anyPlat?div(s.sales,a.spend):null;
   const ser=monthSeries(curMonth()),hi=state.period==="day"&&ser?ser.days.indexOf(state.day):null,sp=(k,c)=>ser?spark(ser[k],c,hi>=0?hi:null):"";
   const spendT=tile("صرف الإعلانات",a.anyPlat?fMoney(a.spend)+" ر.س":"—","plat",a.anyPlat?"كل المنصات":"للحين ما انكتب في ملف الشهر","","",sp("spend",cssv("--slate")));
-  const roasT=tile("الرواس ROAS",fX(roas),"calc","مبيعات سلة ÷ الصرف"+(a.anyPlat?" · المثبت "+fX(a.roasConf):""),"hero",roas==null?"":(roas>=1?"good":"bad"),sp("roas","#fff"));
+  const roasT=tile("الرواس ROAS",fX(roas),"calc","مبيعات سلة ÷ صرف الإعلانات","hero",roas==null?"":(roas>=1?"good":"bad"),sp("roas","#fff"));
   if(!s){el.innerHTML='<div class="tile"><span class="k">مبيعات سلة</span><span class="v">…</span><span class="s">جاري جلب الأرقام من المتجر</span></div>'+spendT;return}
   el.innerHTML=[
     tile("المبيعات",fMoney(s.sales)+" ر.س","salla",state.period==="day"?"مبيعات اليوم":"إجمالي الشهر في سلة","brand","",sp("sales","#fff")),
@@ -513,8 +513,7 @@ function renderOrderStates(s){
 function renderCamp(a,s){
   const actRoas=s&&s.sales!=null?div(s.sales,a.spend):null;
   $("campTiles").innerHTML=[
-    tile("المبيعات المثبتة",a.anyPlat?fMoney(a.conf)+" ر.س":"—","conf","العائد المثبت "+fX(a.roasConf)),
-    tile("العائد حسب المنصات",a.anyPlat?fMoney(a.value)+" ر.س":"—","plat","ROAS "+fX(a.roas)),
+    tile("المبيعات المثبتة",a.anyPlat?fMoney(a.conf)+" ر.س":"—","conf","المؤكدة يدويًا في ملف الشهر"),
     tile("إجمالي الظهور",fInt(a.anyPlat?a.impr:null),"plat","","more"),
     tile("إجمالي النقرات",fInt(a.anyPlat?a.clicks:null),"plat","CTR "+fPct(a.ctr,2),"more"),
     tile("تكلفة النقرة CPC",a.cpc==null?"—":fMoney(a.cpc)+" ر.س","calc","","more"),
@@ -738,9 +737,8 @@ const CMP=[
   ["الإنفاق (ر.س)",x=>x.p.anyPlat?x.p.spend:null,fMoney,0,"plat",1],
   ["مبيعات سلة (ر.س)",x=>x.s?x.s.sales:null,fMoney,1,"salla",1],
   ["طلبات سلة",x=>x.s?x.s.orders:null,fInt,1,"salla",0],
-  ["العائد الفعلي ROAS",x=>x.s&&x.p.anyPlat?div(x.s.sales,x.p.spend):null,fX,1,"calc",1],
+  ["الرواس ROAS (سلة ÷ الصرف)",x=>x.s&&x.p.anyPlat?div(x.s.sales,x.p.spend):null,fX,1,"calc",1],
   ["المبيعات المثبتة (ر.س)",x=>x.p.anyPlat?x.p.conf:null,fMoney,1,"conf",1],
-  ["العائد حسب المنصات",x=>x.p.roas,fX,1,"plat",0],
   ["الظهور",x=>x.p.anyPlat?x.p.impr:null,fInt,1,"plat",0],
   ["النقرات",x=>x.p.anyPlat?x.p.clicks:null,fInt,1,"plat",0],
   ["CTR",x=>x.p.ctr,v=>fPct(v,2),1,"calc",0],
