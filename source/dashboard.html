@@ -347,7 +347,7 @@ const SEARCH_INPUT={query:"title contains 'متابعة الإعلانات' and 
 const RANGE="A2:AL47";
 const TITLE_RE=/متابعة الإعلانات\s*[-–—]/;
 
-const state={files:{},parsed:{},months:[],sel:null,day:null,from:null,to:null,period:"month",quick:"dby",view:"short",cmpA:null,cmpB:null,lastAt:null,errors:{},salla:{},funnel:{},camp:{},ost:{}};
+const state={files:{},parsed:{},months:[],sel:null,day:null,from:null,to:null,period:"month",quick:"this",view:"short",cmpA:null,cmpB:null,lastAt:null,errors:{},salla:{},funnel:{},camp:{},ost:{}};
 let mcp=null;const watches={};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -490,7 +490,7 @@ function render(){
   const m=curMonth();
   const ql={today:"اليوم",yesterday:"أمس",dby:"أول أمس",pick:"يوم مختار",this:"الشهر هذا",last:"الشهر الماضي"}[state.quick]||"";
   if(isRange())$("periodLabel").textContent="من "+fmtDay(state.from)+" إلى "+fmtDay(state.to)+" ("+rangeDays().length+" يوم)";
-  else $("periodLabel").textContent=m?(state.period==="day"?((ql?ql+" · ":"")+state.day+" "+m.label):((ql?ql+" · ":"")+m.label)):(state.missing?("ما فيه ملف لشهر "+state.missing):"—");
+  else $("periodLabel").textContent=m?(state.period==="day"?((ql?ql+" · ":"")+state.day+" "+m.label):((ql?ql+" · ":"")+(()=>{const r=monthRange(m.y,m.m);return "من "+fmtDay(r.from)+" إلى "+fmtDay(r.to)+" "+m.y})())):(state.missing?("ما فيه ملف لشهر "+state.missing):"—");
   const a=periodPlat(),s=periodSalla();
   renderTargets(m);renderBudget(m);renderNotes(m);renderAttr(a,s);
   renderSales(s,a);renderOrderStates(s);renderCamp(a,s);renderCards(a);
@@ -515,6 +515,7 @@ function renderDays(){
   const n=new Date(m.y,m.m,0).getDate();
   if(state.day==null||state.day>n){const cur=m.y===TODAY.y&&m.m===TODAY.m;state.day=cur?TODAY.d:n}
   if(state.period==="day"){fi.value=ti.value=m.key+"-"+pad(state.day)}
+  else{const r=monthRange(m.y,m.m);fi.value=r.from;ti.value=r.to}
 }
 function tile(k,v,tag,sub,cls,vcls,extra){const tg={plat:"من المنصة",conf:"مثبت",salla:"سلة",calc:"محسوب"}[tag];return '<div class="tile '+(cls||"")+'"><span class="tag '+tag+'">'+tg+'</span><span class="k">'+k+'</span><span class="v num '+(vcls||"")+'">'+v+'</span>'+(sub?'<span class="s">'+sub+'</span>':"")+(extra||"")+'</div>'}
  
@@ -895,7 +896,7 @@ function load(){
     ingestSalla(d.salla||{});state.lastAt=Date.now();state.sallaUpdated=d.sallaUpdated||null;state.errors={};
     if(!(d.files||[]).length)state.errors.files={code:"files",message:"ما فيه ملف اسمه «متابعة الإعلانات - الشهر السنة» في الدرايف"};
     rebuildMonths();setNotice();
-    if(!state.booted){state.booted=true;const y=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-2));goDate(y.getUTCFullYear(),y.getUTCMonth()+1,y.getUTCDate(),"dby");return}
+    if(!state.booted){state.booted=true;goMonth(TODAY.y,TODAY.m,"this");return}
     render();
   }).withFailureHandler(e=>{state.errors.load={code:"load",message:(e&&e.message)||String(e)};setNotice();renderStatus()}).getData();
 }
