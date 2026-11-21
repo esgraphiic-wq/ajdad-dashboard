@@ -15,7 +15,7 @@
   --bg:#F6F5FB; --card:#FFFFFF; --ink:#1B1640; --muted:#7A7896; --line:#E6E3EF; --soft:#F1EFF8;
   --brown:#A0693B; --brown-2:#7E4F2A; --slate:#3F4A5C; --slate-2:#2A3240; --pink:#D94F8A; --peri:#5B6FD8;
   --fbnew:#1877F2;--tiktok-c:#111111; --fbre:#3F4A5C; --google:#A0693B; --snap:#F2DC00; --salla:#5B6FD8;
-  --good:#1F9D62; --bad:#D6455D; --focus:#5B6FD8;
+  --good:#1F9D62; --bad:#D6455D; --focus:#5B6FD8;--review:#C2570C;
   --f:"Readex Pro","Segoe UI",Tahoma,sans-serif;
   --r:16px;
 }
@@ -208,6 +208,12 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
 .nt{display:grid;grid-template-columns:auto 1fr;gap:12px;align-items:start;background:var(--card);border:1px solid var(--line);border-inline-start:4px solid var(--pink);border-radius:12px;padding:10px 14px}
 .nt .d{font-size:12px;font-weight:700;color:var(--pink);white-space:nowrap;padding-top:1px}
 .nt p{margin:0;font-size:13px;overflow-wrap:anywhere}
+.nt .body{display:flex;flex-direction:column;gap:5px;min-width:0}
+.nt p.s{color:var(--salla)}.nt p.s b{font-size:11px;background:var(--soft);color:var(--salla);border-radius:6px;padding:1px 6px;margin-inline-end:6px}
+.nt p.r{color:var(--review);font-weight:600}
+.sec-h .lg{display:inline-flex;align-items:center;gap:5px;margin-inline-start:12px;font-size:12px;color:var(--muted)}
+.sec-h .lg i{width:9px;height:9px;border-radius:3px;display:inline-block}
+.lg-d{background:var(--pink)}.lg-s{background:var(--salla)}.lg-r{background:var(--review)}
 .day .flag{width:5px;height:5px;border-radius:50%;background:var(--pink)}
 .day .flag.off{background:transparent}
 .foot{color:var(--muted);font-size:12px;display:flex;flex-wrap:wrap;gap:12px;justify-content:space-between}
@@ -272,6 +278,11 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
   </section>
 
   <section class="sec">
+    <div class="sec-h"><h2 id="notesTitle">ملاحظات الأيام</h2><small><span class="lg"><i class="lg-d"></i>ملاحظات اليوم</span><span class="lg"><i class="lg-s"></i>ملاحظات سلة</span><span class="lg"><i class="lg-r"></i>تعديل من المراجعة</span></small></div>
+    <div class="notes" id="notes"></div>
+  </section>
+
+  <section class="sec">
     <div class="sec-h"><h2>تارجت الشهر</h2><small id="tgNote"></small></div>
     <div class="targets" id="targets"></div>
   </section>
@@ -298,10 +309,6 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
     <div class="cards" id="cards"></div>
   </section>
 
-  <section class="sec">
-    <div class="sec-h"><h2 id="notesTitle">ملاحظات الأيام</h2><small>من عمود الملاحظات في ملف الشهر</small></div>
-    <div class="notes" id="notes"></div>
-  </section>
 
   <section class="grid2 more">
     <div class="panel"><h3>الإنفاق مقابل مبيعات سلة يوم بيوم</h3><p class="sub" id="trendNote"></p><div class="chartbox"><canvas id="trend" aria-label="الإنفاق اليومي لكل منصة ومبيعات سلة"></canvas></div></div>
@@ -378,7 +385,9 @@ function readPlat(r,cols){const o={};let any=false;PLATS.forEach(p=>{const x={};
 function layoutOf(values,hi){
   const h=(values[hi]||[]).map(v=>String(v||"").trim());const cols={};
   PLATS.forEach(p=>{const i=h.indexOf(PLAT_HEAD[p.key]);cols[p.key]=i>=0?i:(h.length?null:p.col)});
-  const ni=h.indexOf("ملاحظات اليوم");return{cols,notes:ni>=0?ni:31};
+  const ni=h.indexOf("ملاحظات اليوم");
+  const f=(values[hi+1]||[]).map(v=>String(v||"").trim()),si=f.indexOf("ملاحظات");
+  return{cols,notes:ni>=0?ni:31,snotes:si>=0?si:null};
 }
 function parseFile(file,values){
   values=values||[];
@@ -389,7 +398,7 @@ function parseFile(file,values){
   if(!start){const t=file.title||"";const mi=MONTHS_AR.findIndex(n=>t.includes(n));const y=/(20\d\d)/.exec(t);if(mi>=0&&y)start={d:1,m:mi+1,y:+y[1]}}
   if(!start)return null;
   const days=[],L=layoutOf(values,hi);
-  for(let i=hi+2;i<=hi+32&&i<values.length;i++){const r=values[i]||[];const dt=pDate(r[0]);if(!dt)continue;const x=readPlat(r,L.cols);const note=String(r[L.notes]||"").trim();days.push({d:dt.d,plat:x.plat,has:x.any,note})}
+  for(let i=hi+2;i<=hi+32&&i<values.length;i++){const r=values[i]||[];const dt=pDate(r[0]);if(!dt)continue;const x=readPlat(r,L.cols);const note=String(r[L.notes]||"").trim(),snote=L.snotes==null?"":String(r[L.snotes]||"").trim();days.push({d:dt.d,plat:x.plat,has:x.any,note,snote})}
   const s=readPlat(values[findRow(/^إجمالي من تقرير/,36)]||[],L.cols);
   let budget=null;
   for(let i=0;i<Math.min(values.length,14)&&!budget;i++){const r=values[i]||[];const j=r.findIndex(v=>String(v||"").trim()==="السيناريو");
@@ -727,15 +736,23 @@ function renderTargets(m){
   }).join("");
   $("tgNote").textContent=(pr.done?"الشهر خلص · ":"يوم "+pr.d+" من "+pr.n+" · ")+"تحقق "+ok+" من "+items.length;
 }
+function hasNote(d){return !!(d&&(d.note||d.snote))}
+/* سطور الملاحظة: سطور المراجعة (🔁) بلون مختلف، وملاحظة سلة لوحدها بعلامة «سلة» */
+function noteHtml(d){
+  let h=(d.note||"").split(/\n+/).filter(x=>x.trim()).map(x=>'<p class="'+(/^\s*🔁/.test(x)?"r":"")+'">'+esc(x.trim())+'</p>').join("");
+  if(d.snote)h+='<p class="s"><b>سلة</b>'+esc(d.snote)+'</p>';
+  return h;
+}
 function renderNotes(m){
   const el=$("notes");
   if(!m){el.innerHTML="";return}
-  let list=m.days.filter(d=>d.note);
+  let list=m.days.filter(hasNote);
   if(state.period==="day"){list=list.filter(d=>d.d===state.day);$("notesTitle").textContent="ملاحظات يوم "+state.day}
-  else if(isRange()){list=[];rangeDays().forEach(k=>{const mm=monthByKey(k.slice(0,7));const d=mm&&mm.days.find(x=>x.d===+k.slice(8,10)&&x.note);if(d)list.push(Object.assign({},d,{_m:+k.slice(5,7)}))});$("notesTitle").textContent="ملاحظات الفترة"}
+  else if(isRange()){list=[];rangeDays().forEach(k=>{const mm=monthByKey(k.slice(0,7));const d=mm&&mm.days.find(x=>x.d===+k.slice(8,10)&&hasNote(x));if(d)list.push(Object.assign({},d,{_m:+k.slice(5,7)}))});$("notesTitle").textContent="ملاحظات الفترة"}
   else $("notesTitle").textContent="ملاحظات الأيام";
-  if(state.view!=="full"&&state.period==="month")list=list.slice(-5);
-  el.innerHTML=list.length?list.map(d=>'<div class="nt"><span class="d num">'+d.d+' '+MONTHS_AR[(d._m||m.m)-1]+'</span><p>'+esc(d.note)+'</p></div>').join(""):'<div class="empty">'+(state.period==="day"?"ما فيه ملاحظات لهاليوم":(isRange()?"ما فيه ملاحظات لهالفترة":"ما فيه ملاحظات لهالشهر للحين"))+'</div>';
+  list=list.slice().sort((x,y)=>((y._m||m.m)*100+y.d)-((x._m||m.m)*100+x.d));   // الأحدث فوق
+  if(state.view!=="full"&&state.period==="month")list=list.slice(0,5);
+  el.innerHTML=list.length?list.map(d=>'<div class="nt"><span class="d num">'+d.d+' '+MONTHS_AR[(d._m||m.m)-1]+'</span><div class="body">'+noteHtml(d)+'</div></div>').join(""):'<div class="empty">'+(state.period==="day"?"ما فيه ملاحظات لهاليوم":(isRange()?"ما فيه ملاحظات لهالفترة":"ما فيه ملاحظات لهالشهر للحين"))+'</div>';
 }
 function li(i,title,sub,val){return '<div class="li"><span class="n">'+(i+1)+'</span><span class="t"><b>'+esc(title)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':"")+'</span><span class="val num">'+val+'</span></div>'}
 function renderLists(m){
@@ -773,15 +790,16 @@ function drawQuick(m,a){
     let i0=0,i1=ser.days.length;if(i1>21)i0=i1-21;
     const lab=ser.days.slice(i0,i1).map(d=>d+" "+MONTHS_AR[m.m-1].slice(0,3));
     const hiI=state.period==="day"?ser.days.indexOf(state.day)-i0:-1;
+    const noteOn=dd=>hasNote(m.days.find(x=>x.d===dd));
     const anySp=ser.spend.some(v=>v!=null);
-    $("qtNote").textContent=m.label+" · مبيعات سلة"+(anySp?" مقابل صرف الإعلانات":" (الصرف اليومي ما انكتب للحين)");
+    $("qtNote").textContent=m.label+(m.days.some(hasNote)?" · ◆ يوم فيه ملاحظة":"")+" · مبيعات سلة"+(anySp?" مقابل صرف الإعلانات":" (الصرف اليومي ما انكتب للحين)");
     const brown=cssv("--brown"),slate=cssv("--slate");
     qTrendChart=new Chart($("qTrend"),{data:{labels:lab,datasets:[
       {type:"line",label:"مبيعات سلة",data:ser.sales.slice(i0,i1),borderColor:brown,backgroundColor:"rgba(160,105,59,.10)",fill:true,tension:.4,borderWidth:2,
-        pointRadius:ser.sales.slice(i0,i1).map((_,i)=>i===hiI?5:0),pointBackgroundColor:brown,pointBorderColor:"#fff",pointBorderWidth:2,spanGaps:true,order:1},
+        pointRadius:ser.sales.slice(i0,i1).map((_,i)=>i===hiI?5:(noteOn(ser.days[i0+i])?4:0)),pointStyle:ser.sales.slice(i0,i1).map((_,i)=>noteOn(ser.days[i0+i])&&i!==hiI?"rectRot":"circle"),pointBackgroundColor:brown,pointBorderColor:"#fff",pointBorderWidth:2,spanGaps:true,order:1},
       {type:"bar",label:"صرف الإعلانات",data:ser.spend.slice(i0,i1),backgroundColor:ser.spend.slice(i0,i1).map((_,i)=>i===hiI?slate:"rgba(63,74,92,.28)"),borderRadius:5,maxBarThickness:16,order:2}]},
       options:{responsive:true,maintainAspectRatio:false,animation:{duration:500},interaction:{mode:"index",intersect:false},
-        plugins:{legend:{position:"bottom",rtl:true,labels:{boxWidth:10,boxHeight:10,usePointStyle:true}},tooltip:{rtl:true,callbacks:{label:c=>c.dataset.label+": "+(c.raw==null?"—":fMoney(c.raw)+" ر.س")}}},
+        plugins:{legend:{position:"bottom",rtl:true,labels:{boxWidth:10,boxHeight:10,usePointStyle:true}},tooltip:{rtl:true,callbacks:{label:c=>c.dataset.label+": "+(c.raw==null?"—":fMoney(c.raw)+" ر.س"),footer:it=>{const d=it.length?m.days.find(x=>x.d===ser.days[i0+it[0].dataIndex]):null;if(!hasNote(d))return"";const t=[d.note,d.snote?"سلة: "+d.snote:""].filter(Boolean).join(" · ");return "📝 "+(t.length>90?t.slice(0,90)+"…":t)}}}},
         scales:{x:{grid:{display:false},ticks:{maxRotation:0,autoSkip:true,maxTicksLimit:8}},y:{beginAtZero:true,border:{display:false},grid:{color:"rgba(0,0,0,.04)"},ticks:{maxTicksLimit:4,callback:v=>v>=1000?(v/1000)+"k":v}}}}});
   }
   const parts=PLATS.map(p=>({n:p.name,v:a.plat[p.key].spend||0,c:cssv(p.css)})).filter(x=>x.v>0),tot=parts.reduce((t,x)=>t+x.v,0);
