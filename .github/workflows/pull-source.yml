@@ -1,0 +1,20 @@
+name: pull dashboard source
+on:
+  workflow_dispatch:
+  push:
+    paths: ['.github/workflows/pull-source.yml']
+permissions:
+  contents: write
+jobs:
+  pull:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: |
+          curl -sSL "https://script.google.com/macros/s/AKfycbxIzKBDRqOccmGXvioilFoTTBNqFJxDvU0S6RaToQtH9yMShzADnJzXSNLJx3fECV7xwA/exec?api=html" -o source/dashboard.html --create-dirs
+          wc -c source/dashboard.html
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git add source/dashboard.html
+          git commit -m "Snapshot dashboard source from Apps Script" || echo "no change"
+          git push
