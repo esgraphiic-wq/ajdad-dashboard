@@ -157,7 +157,8 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
 .spark path.l{fill:none;stroke-width:1.8;stroke-linecap:round;stroke-linejoin:round}
 .spark path.a{stroke:none;opacity:.12}
 .tile.hero .spark path.l,.tile.brand .spark path.l{stroke:#fff;opacity:.85}.tile.hero .spark path.a,.tile.brand .spark path.a{fill:#fff;opacity:.14}
-.quick{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr);gap:12px}
+.quick{display:grid;grid-template-columns:minmax(0,1.7fr) minmax(0,1fr) minmax(0,1fr);gap:12px}
+@media (max-width:1100px){.quick{grid-template-columns:minmax(0,1fr) minmax(0,1fr)}.quick>.panel:first-child{grid-column:1/-1}}
 @media (max-width:1000px){.quick{grid-template-columns:1fr}}
 .quick .chartbox{height:230px}
 .donutwrap{display:grid;grid-template-columns:150px 1fr;gap:14px;align-items:center}
@@ -272,6 +273,7 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
   <section class="quick">
     <div class="panel"><h3>المبيعات والصرف يوم بيوم</h3><p class="sub" id="qtNote">مبيعات سلة مقابل صرف الإعلانات</p><div class="chartbox"><canvas id="qTrend" aria-label="مبيعات سلة وصرف الإعلانات لكل يوم"></canvas></div></div>
     <div class="panel"><h3>وين يروح الصرف؟</h3><p class="sub">توزيع صرف الفترة على المنصات</p><div class="donutwrap"><div class="donutbox"><canvas id="qDonut" aria-label="توزيع الصرف على المنصات"></canvas><div class="donutc" id="qDonutC"></div></div><div class="dleg" id="qDonutL"></div></div></div>
+    <div class="panel"><h3>منتجاتنا وأجمل</h3><p class="sub" id="brNote">نسبة كل واحد من مبيعات المنتجات في الشهر</p><div class="donutwrap"><div class="donutbox"><canvas id="brDonut" aria-label="نسبة مبيعات منتجاتنا ومنتجات أجمل"></canvas><div class="donutc" id="brDonutC"></div></div><div class="dleg" id="brDonutL"></div></div></div>
   </section>
 
   <section class="sec">
@@ -705,7 +707,21 @@ function renderLists(m){
 
  
 let trendChart=null,platChart=null,monthsChart=null,qTrendChart=null,qDonutChart=null;
+let brChart=null;
+/* نسبة منتجاتنا ومنتجات أجمل من مبيعات المنتجات (من غير الضريبة والشحن)، حسب الشهر */
+function drawBrands(m){
+  brChart=kill(brChart);
+  const b=m?(sallaFor(m.key).brands||[]):[],aj=b.find(x=>/أجمل|اجمل/.test(x.label)),all=b.find(x=>/كل المنتجات/.test(x.label));
+  $("brNote").textContent=(m?m.label+" · ":"")+"نسبة كل واحد من مبيعات المنتجات"+(state.period==="day"?" (للشهر كله)":"");
+  if(!aj||!all||!all.sales||!chartOk()){$("brDonutC").innerHTML='<div><b>—</b><small>ما فيه بيانات</small></div>';$("brDonutL").innerHTML='<div class="empty" style="display:block">تظهر بعد تحديث سلة الجاي</div>';return}
+  const ours=Math.max(0,all.sales-aj.sales),parts=[{n:"منتجاتنا",v:ours,u:all.units!=null&&aj.units!=null?all.units-aj.units:null,c:cssv("--brown")},{n:"منتجات أجمل",v:aj.sales,u:aj.units,c:cssv("--slate")}],tot=ours+aj.sales;
+  brChart=new Chart($("brDonut"),{type:"doughnut",data:{labels:parts.map(x=>x.n),datasets:[{data:parts.map(x=>x.v),backgroundColor:parts.map(x=>x.c),borderColor:"#fff",borderWidth:3,hoverOffset:4}]},
+    options:{responsive:true,maintainAspectRatio:false,cutout:"72%",animation:{duration:500},plugins:{legend:{display:false},tooltip:{rtl:true,callbacks:{label:c=>c.label+": "+fMoney(c.raw)+" ر.س · "+fPct(c.raw/tot,0)}}}}});
+  $("brDonutC").innerHTML='<div><b class="num">'+fPct(ours/tot,0)+'</b><small>منتجاتنا</small></div>';
+  $("brDonutL").innerHTML=parts.map(x=>'<div><i style="background:'+x.c+'"></i><span>'+esc(x.n)+'<br><small class="num" style="color:var(--muted)">'+fMoney(x.v)+' ر.س'+(x.u!=null?' · '+fInt(x.u)+' قطعة':'')+'</small></span><span class="p">'+fPct(x.v/tot,0)+'</span></div>').join("");
+}
 function drawQuick(m,a){
+  drawBrands(m);
   qTrendChart=kill(qTrendChart);qDonutChart=kill(qDonutChart);
   const ser=monthSeries(m);
   if(ser&&chartOk()){
@@ -823,7 +839,8 @@ function ingestSalla(d){
     if(t==="منتج")(s.products=s.products||[]).push({product_name:name,units:n0(r[4])});
     else if(t==="مدينة")(s.cities=s.cities||[]).push({label:name,sales:n0(r[4])});
     else if(t==="دفع")(s.payments=s.payments||[]).push({label:name,orders:n0(r[4]),sales:n0(r[5])});
-    else if(t==="مصدر")(s.sources=s.sources||[]).push({label:name,visits:n0(r[4]),purchases:n0(r[5]),conversion_rate:num(r[6])})});
+    else if(t==="مصدر")(s.sources=s.sources||[]).push({label:name,visits:n0(r[4]),purchases:n0(r[5]),conversion_rate:num(r[6])});
+    else if(t==="ماركة")(s.brands=s.brands||[]).push({label:String(name||"").trim(),sales:n0(r[4]),units:n0(r[5])})});
   Object.values(state.salla).forEach(s=>{["daily","products","cities","payments","sources"].forEach(f=>{s[f]=s[f]||[]})});
 }
 function load(){
