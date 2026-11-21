@@ -60,6 +60,11 @@ button{cursor:pointer}
 .day[aria-pressed="true"]{border-color:var(--ink);background:var(--soft)}
 
 .qgrid{display:grid;grid-template-columns:repeat(5,minmax(0,1fr));gap:10px}
+.qgrid .pick{grid-column:1/-1;cursor:default}
+.pk{display:grid;grid-template-columns:auto minmax(0,1fr) auto minmax(0,1fr);gap:8px;align-items:center;width:100%}
+.pk label{font-size:13px;color:var(--muted)}
+.qbox.on .pk label{color:#C9C6E6}
+@media (max-width:420px){.pk{grid-template-columns:auto minmax(0,1fr)}}
 @media (max-width:820px){.qgrid{grid-template-columns:repeat(2,minmax(0,1fr))}.qgrid .pick{grid-column:1/-1}}
 .vgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:10px;padding-top:12px;border-top:1px dashed var(--line)}
 .vgrid .qbox{min-height:64px}
@@ -70,7 +75,7 @@ button{cursor:pointer}
 .qbox[aria-pressed="true"],.qbox.on{background:var(--ink);border-color:var(--ink);box-shadow:0 6px 18px rgba(27,22,64,.18)}
 .qbox[aria-pressed="true"] b,.qbox.on b{color:#fff}
 .qbox[aria-pressed="true"] small{color:#C9C6E6}
-.pick input{width:100%;border:0;background:var(--card);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:13px;color:var(--ink);direction:ltr}
+.pick input{width:100%;min-width:0;border:0;background:var(--card);border-radius:8px;padding:5px 8px;font-family:inherit;font-size:13px;color:var(--ink);direction:ltr}
 @media (prefers-reduced-motion:reduce){.qbox{transition:none}.qbox:hover{transform:none}}
 .attr{display:grid;grid-template-columns:repeat(auto-fit,minmax(230px,1fr));gap:12px}
 .ac{background:var(--card);border:1px solid var(--line);border-top:4px solid var(--c);border-radius:var(--r);padding:14px 16px;display:flex;flex-direction:column;gap:10px;min-width:0}
@@ -244,9 +249,10 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
     <div class="qgrid" role="group" aria-label="الفترة">
       <button type="button" class="qbox" id="qToday" aria-pressed="true"><b>اليوم</b><small id="qTodayS"></small></button>
       <button type="button" class="qbox" id="qYest" aria-pressed="false"><b>أمس</b><small id="qYestS"></small></button>
+      <button type="button" class="qbox" id="qDby" aria-pressed="false"><b>أول أمس</b><small id="qDbyS"></small></button>
       <button type="button" class="qbox" id="qThis" aria-pressed="false"><b>الشهر هذا</b><small id="qThisS"></small></button>
       <button type="button" class="qbox" id="qLast" aria-pressed="false"><b>الشهر الماضي</b><small id="qLastS"></small></button>
-      <label class="qbox pick" id="pickWrap" for="pickDate"><b>اختر يوم</b><input type="date" id="pickDate"></label>
+      <div class="qbox pick" id="pickWrap"><b>اختر فترة</b><div class="pk"><label for="pickFrom">من</label><input type="date" id="pickFrom"><label for="pickTo">إلى</label><input type="date" id="pickTo"></div><small id="pickMsg">اختار نفس اليوم في الاتنين عشان تشوف يوم واحد</small></div>
     </div>
     <div class="vgrid" role="group" aria-label="طريقة العرض">
       <button type="button" class="qbox" id="vShort" aria-pressed="true"><b>مختصر</b><small>أهم الأرقام بس</small></button>
@@ -341,7 +347,7 @@ const SEARCH_INPUT={query:"title contains 'متابعة الإعلانات' and 
 const RANGE="A2:AL47";
 const TITLE_RE=/متابعة الإعلانات\s*[-–—]/;
 
-const state={files:{},parsed:{},months:[],sel:null,day:null,period:"month",quick:"this",view:"short",cmpA:null,cmpB:null,lastAt:null,errors:{},salla:{},funnel:{},camp:{},ost:{}};
+const state={files:{},parsed:{},months:[],sel:null,day:null,from:null,to:null,period:"month",quick:"dby",view:"short",cmpA:null,cmpB:null,lastAt:null,errors:{},salla:{},funnel:{},camp:{},ost:{}};
 let mcp=null;const watches={};
 const $=id=>document.getElementById(id);
 const esc=s=>String(s==null?"":s).replace(/[&<>"']/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;","'":"&#39;"}[c]));
@@ -396,7 +402,7 @@ function rebuildMonths(){
   const by={};Object.values(state.parsed).forEach(p=>{if(!p)return;const c=by[p.key];if(!c||p.modified>c.modified)by[p.key]=p});
   state.months=Object.values(by).sort((a,b)=>a.key<b.key?-1:1);
   const keys=state.months.map(m=>m.key);
-  if(!state.sel||!keys.includes(state.sel)){const tk=mkey(TODAY.y,TODAY.m);state.sel=keys.includes(tk)?tk:(keys[keys.length-1]||null);state.day=null}
+  if(!state.sel||!keys.includes(state.sel)){const tk=mkey(TODAY.y,TODAY.m);state.sel=keys.includes(tk)?tk:(keys[keys.length-1]||null);if(!isRange())state.day=null}
   if(!state.cmpA||!keys.includes(state.cmpA))state.cmpA=state.sel;
   if(!state.cmpB||!keys.includes(state.cmpB)){const i=keys.indexOf(state.cmpA);state.cmpB=i>0?keys[i-1]:(keys.find(k=>k!==state.cmpA)||null)}
 }
@@ -413,7 +419,39 @@ function aggPlat(list){
   return o;
 }
 function monthPlat(m){if(!m)return aggPlat([]);if(hasDaily(m))return aggPlat(m.days.filter(d=>d.has).map(d=>d.plat));return aggPlat(m.summary?[m.summary]:[])}
-function periodPlat(){const m=curMonth();if(!m)return aggPlat([]);if(state.period==="month")return monthPlat(m);const d=m.days.find(x=>x.d===state.day);return aggPlat(d&&d.has?[d.plat]:[])}
+
+/* ---------- فترة من/إلى ---------- */
+const isRange=()=>state.period==="range";
+function dkey(y,m,d){return mkey(y,m)+"-"+pad(d)}
+function addDays(k,n){const t=new Date(Date.UTC(+k.slice(0,4),+k.slice(5,7)-1,+k.slice(8,10)+n));return t.toISOString().slice(0,10)}
+function rangeDays(){const out=[];if(!state.from||!state.to)return out;for(let k=state.from;k<=state.to&&out.length<400;k=addDays(k,1))out.push(k);return out}
+function monthByKey(k){return state.months.find(m=>m.key===k)||null}
+function rangePlat(){const list=[];rangeDays().forEach(k=>{const m=monthByKey(k.slice(0,7));if(!m)return;const d=m.days.find(x=>x.d===+k.slice(8,10));if(d&&d.has)list.push(d.plat)});return aggPlat(list)}
+function rangeSalla(){
+  const o={sales:0,orders:0,discount:0,shipping:0,cogs:0,fees:0},days=rangeDays();let any=false;
+  days.forEach(k=>{const r=(sallaFor(k.slice(0,7)).daily||[]).find(x=>x.period===k);if(!r)return;any=true;const d=r.details||{};
+    o.sales+=r.sales||0;o.orders+=r.orders||0;o.discount+=r.discount||0;o.shipping+=d.sales_shipping_cost||0;o.cogs+=d.sales_cost_price||0;o.fees+=d.sales_epayment_fee||0});
+  if(!any)return Object.keys(state.salla).length?{sales:0,orders:0,aov:null}:null;
+  o.aov=div(o.sales,o.orders);return o;
+}
+function rangeFunnel(){
+  const f={visits:0,add_to_cart:0,cart_views:0,checkouts:0,orders:0};let any=false;
+  rangeDays().forEach(k=>{const x=state.funnel[k+"|"+k];if(!x)return;any=true;Object.keys(f).forEach(n=>f[n]+=x[n]||0)});
+  if(!any)return null;const v=f.visits;
+  return Object.assign(f,{conversion_rate:v?f.orders/v*100:null,add_to_cart_rate:v?f.add_to_cart/v*100:null,checkout_rate:v?f.checkouts/v*100:null});
+}
+function rangeCamp(){
+  const by={};let any=false;
+  rangeDays().forEach(k=>{const rows=state.camp[k+"|"+k];if(!rows)return;any=true;rows.forEach(r=>{const s=r.details&&r.details.source;const t=by[s]=by[s]||{sales:0,purchases:0,details:{source:s}};t.sales+=r.sales||0;t.purchases+=r.purchases||0})});
+  return any?Object.values(by):null;
+}
+function rangeOst(){
+  const o={can:0,canV:0,ret:0,retV:0,cod:0,codV:0,pend:0,pendV:0};let any=false;
+  rangeDays().forEach(k=>{const x=state.ost[k];if(!x)return;any=true;Object.keys(o).forEach(n=>o[n]+=x[n]||0)});
+  return any?o:null;
+}
+function fmtDay(k){return +k.slice(8,10)+" "+MONTHS_AR[+k.slice(5,7)-1]}
+function periodPlat(){if(isRange())return rangePlat();const m=curMonth();if(!m)return aggPlat([]);if(state.period==="month")return monthPlat(m);const d=m.days.find(x=>x.d===state.day);return aggPlat(d&&d.has?[d.plat]:[])}
 function sallaFor(key){return state.salla[key]||{}}
 /* رواس سلة المستقر: مبيعات سلة ÷ صرف الإعلانات، على الأيام اللي عدّى عليها يومين بس
    (عبد الله بيسجل صرف اليوم بالليل، ومبيعات سلة بتاخد يوم أو يومين لحد ما تثبت). */
@@ -434,10 +472,11 @@ function settledRoas(m){
 }
 function settledNote(r,m){if(!r||!r.upTo)return"لسه ما فيه أيام مستقرة";return r.full?"الشهر كامل":"لحد "+r.upTo+" "+(m?m.label.split(" ")[0]:"")+" · بعد يومين من كل يوم"}
 
-function periodRange(){const m=curMonth();if(!m)return null;if(state.period==="month")return monthRange(m.y,m.m);const d=m.key+"-"+pad(state.day);return{from:d,to:d}}
+function periodRange(){if(isRange())return{from:state.from,to:state.to};const m=curMonth();if(!m)return null;if(state.period==="month")return monthRange(m.y,m.m);const d=m.key+"-"+pad(state.day);return{from:d,to:d}}
 const rkey=r=>r.from+"|"+r.to;
-function periodFunnel(){const r=periodRange();return r?state.funnel[rkey(r)]||null:null}
+function periodFunnel(){if(isRange())return rangeFunnel();const r=periodRange();return r?state.funnel[rkey(r)]||null:null}
 function periodSalla(){
+  if(isRange())return rangeSalla();
   const m=curMonth();if(!m)return null;const s=sallaFor(m.key);
   if(state.period==="month"){const t=s.summary;return t?{sales:t.sales,orders:t.orders,aov:t.average_order_value,customers:t.customers,returned:t.returned_orders,units:t.units_sold,discount:t.discount,shipping:t.shipping,cogs:t.cost_of_goods,fees:t.payment_fees,tax:t.tax}:null}
   const rows=s.daily;if(!rows)return null;const r=rows.find(x=>x.period===mkey(m.y,m.m)+"-"+pad(state.day));
@@ -449,8 +488,9 @@ function periodSalla(){
 function render(){
   renderStatus();renderMonths();renderDays();
   const m=curMonth();
-  const ql={today:"اليوم",yesterday:"أمس",pick:"يوم مختار",this:"الشهر هذا",last:"الشهر الماضي"}[state.quick]||"";
-  $("periodLabel").textContent=m?(state.period==="day"?((ql?ql+" · ":"")+state.day+" "+m.label):((ql?ql+" · ":"")+m.label)):(state.missing?("ما فيه ملف لشهر "+state.missing):"—");
+  const ql={today:"اليوم",yesterday:"أمس",dby:"أول أمس",pick:"يوم مختار",this:"الشهر هذا",last:"الشهر الماضي"}[state.quick]||"";
+  if(isRange())$("periodLabel").textContent="من "+fmtDay(state.from)+" إلى "+fmtDay(state.to)+" ("+rangeDays().length+" يوم)";
+  else $("periodLabel").textContent=m?(state.period==="day"?((ql?ql+" · ":"")+state.day+" "+m.label):((ql?ql+" · ":"")+m.label)):(state.missing?("ما فيه ملف لشهر "+state.missing):"—");
   const a=periodPlat(),s=periodSalla();
   renderTargets(m);renderBudget(m);renderNotes(m);renderAttr(a,s);
   renderSales(s,a);renderOrderStates(s);renderCamp(a,s);renderCards(a);
@@ -465,13 +505,16 @@ function renderMonths(){return;const el=null;if(!state.months.length)return;el.i
 function renderDays(){
   const yd=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-1)),lm=new Date(Date.UTC(TODAY.y,TODAY.m-2,1));
   $("qTodayS").textContent=TODAY.d+" "+MONTHS_AR[TODAY.m-1];$("qYestS").textContent=yd.getUTCDate()+" "+MONTHS_AR[yd.getUTCMonth()];
+  const db=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-2));$("qDbyS").textContent=db.getUTCDate()+" "+MONTHS_AR[db.getUTCMonth()];
   $("qThisS").textContent=mlabel(TODAY.y,TODAY.m);$("qLastS").textContent=mlabel(lm.getUTCFullYear(),lm.getUTCMonth()+1);
-  const m=curMonth(),inp=$("pickDate");
-  const first=state.months[0];inp.min=first?(first.key+"-01"):"";inp.max=mkey(TODAY.y,TODAY.m)+"-"+pad(TODAY.d);
+  const m=curMonth(),fi=$("pickFrom"),ti=$("pickTo");
+  const first=state.months[0],mn=first?(first.key+"-01"):"",mx=mkey(TODAY.y,TODAY.m)+"-"+pad(TODAY.d);
+  [fi,ti].forEach(x=>{x.min=mn;x.max=mx});
+  if(isRange()){fi.value=state.from;ti.value=state.to;return}
   if(!m)return;
   const n=new Date(m.y,m.m,0).getDate();
   if(state.day==null||state.day>n){const cur=m.y===TODAY.y&&m.m===TODAY.m;state.day=cur?TODAY.d:n}
-  inp.value=m.key+"-"+pad(state.day);
+  if(state.period==="day"){fi.value=ti.value=m.key+"-"+pad(state.day)}
 }
 function tile(k,v,tag,sub,cls,vcls,extra){const tg={plat:"من المنصة",conf:"مثبت",salla:"سلة",calc:"محسوب"}[tag];return '<div class="tile '+(cls||"")+'"><span class="tag '+tag+'">'+tg+'</span><span class="k">'+k+'</span><span class="v num '+(vcls||"")+'">'+v+'</span>'+(sub?'<span class="s">'+sub+'</span>':"")+(extra||"")+'</div>'}
  
@@ -496,13 +539,13 @@ function renderSales(s,a){
   const el=$("salesTiles");
   const m0=curMonth();let roas=null,roasSub="مبيعات سلة ÷ صرف الإعلانات";
   if(state.period==="month"){const r=settledRoas(m0);roas=r?r.roas:null;roasSub="مبيعات سلة ÷ الصرف · "+settledNote(r,m0)}
-  else{roas=s&&s.sales!=null&&a.anyPlat?div(s.sales,a.spend):null;if(m0&&(m0.key+"-"+pad(state.day))>cutoffKey())roasSub+=" · لسه مش نهائي (يثبت بعد يومين)"}
+  else{roas=s&&s.sales!=null&&a.anyPlat?div(s.sales,a.spend):null;const lastK=isRange()?state.to:(m0?m0.key+"-"+pad(state.day):"");if(lastK&&lastK>cutoffKey())roasSub+=" · لسه مش نهائي (يثبت بعد يومين)"}
   const ser=monthSeries(curMonth()),hi=state.period==="day"&&ser?ser.days.indexOf(state.day):null,sp=(k,c)=>ser?spark(ser[k],c,hi>=0?hi:null):"";
   const spendT=tile("صرف الإعلانات",a.anyPlat?fMoney(a.spend)+" ر.س":"—","plat",a.anyPlat?"كل المنصات":"للحين ما انكتب في ملف الشهر","","",sp("spend",cssv("--slate")));
   const roasT=tile("الرواس ROAS",fX(roas),"calc",roasSub,"hero",roas==null?"":(roas>=1?"good":"bad"),sp("roas","#fff"));
   if(!s){el.innerHTML='<div class="tile"><span class="k">مبيعات سلة</span><span class="v">…</span><span class="s">جاري جلب الأرقام من المتجر</span></div>'+spendT;return}
   el.innerHTML=[
-    tile("المبيعات",fMoney(s.sales)+" ر.س","salla",state.period==="day"?"مبيعات اليوم":"إجمالي الشهر في سلة","brand","",sp("sales","#fff")),
+    tile("المبيعات",fMoney(s.sales)+" ر.س","salla",state.period==="day"?"مبيعات اليوم":(isRange()?"مبيعات الفترة في سلة":"إجمالي الشهر في سلة"),"brand","",sp("sales","#fff")),
     spendT,
     roasT,
     tile("الطلبات",fInt(s.orders),"salla",s.customers!=null?fInt(s.customers)+" عميل":"","","",sp("orders",cssv("--peri"))),
@@ -520,7 +563,7 @@ function renderSales(s,a){
     a.anyPlat&&s.orders?tile("تكلفة الطلب",fMoney(a.spend/s.orders)+" ر.س","calc","صرف الإعلانات ÷ طلبات سلة","more"):""
   ].join("");
 }
-function periodOst(){const m=curMonth();if(!m)return null;return state.ost[state.period==="month"?m.key:(m.key+"-"+pad(state.day))]||null}
+function periodOst(){if(isRange())return rangeOst();const m=curMonth();if(!m)return null;return state.ost[state.period==="month"?m.key:(m.key+"-"+pad(state.day))]||null}
 function renderOrderStates(s){
   const el=$("stateTiles"),o=periodOst();
   if(!o){el.innerHTML='<div class="tile"><span class="k">حالات الطلبات</span><span class="v">—</span><span class="s">ما فيه بيانات لهالفترة للحين، تتحدث مع تحديث سلة الجاي</span></div>';return}
@@ -547,7 +590,7 @@ function renderCamp(a,s){
 }
 function platOf(src){const s=String(src||"").toLowerCase();if(/snap/.test(s))return"snap";if(/tiktok/.test(s))return"tiktok";if(/facebook|instagram|^fb|^ig|meta|messenger/.test(s))return"meta";if(/google|gad|adwords|youtube/.test(s))return"google";return null}
 function attrActual(){
-  const r=periodRange();if(!r)return null;const rows=state.camp[rkey(r)];if(!rows)return null;
+  const r=periodRange();if(!r)return null;const rows=isRange()?rangeCamp():state.camp[rkey(r)];if(!rows)return null;
   const o={meta:{sales:0,orders:0},google:{sales:0,orders:0},snap:{sales:0,orders:0},tiktok:{sales:0,orders:0}};let ads=0;
   rows.forEach(x=>{const k=platOf(x.details&&x.details.source);if(!k)return;o[k].sales+=x.sales||0;o[k].orders+=x.purchases||0;ads+=x.sales||0});
   o.ads=ads;return o;
@@ -688,9 +731,10 @@ function renderNotes(m){
   if(!m){el.innerHTML="";return}
   let list=m.days.filter(d=>d.note);
   if(state.period==="day"){list=list.filter(d=>d.d===state.day);$("notesTitle").textContent="ملاحظات يوم "+state.day}
+  else if(isRange()){list=[];rangeDays().forEach(k=>{const mm=monthByKey(k.slice(0,7));const d=mm&&mm.days.find(x=>x.d===+k.slice(8,10)&&x.note);if(d)list.push(Object.assign({},d,{_m:+k.slice(5,7)}))});$("notesTitle").textContent="ملاحظات الفترة"}
   else $("notesTitle").textContent="ملاحظات الأيام";
-  if(state.view!=="full"&&state.period!=="day")list=list.slice(-5);
-  el.innerHTML=list.length?list.map(d=>'<div class="nt"><span class="d num">'+d.d+' '+MONTHS_AR[m.m-1]+'</span><p>'+esc(d.note)+'</p></div>').join(""):'<div class="empty">'+(state.period==="day"?"ما فيه ملاحظات لهاليوم":"ما فيه ملاحظات لهالشهر للحين")+'</div>';
+  if(state.view!=="full"&&state.period==="month")list=list.slice(-5);
+  el.innerHTML=list.length?list.map(d=>'<div class="nt"><span class="d num">'+d.d+' '+MONTHS_AR[(d._m||m.m)-1]+'</span><p>'+esc(d.note)+'</p></div>').join(""):'<div class="empty">'+(state.period==="day"?"ما فيه ملاحظات لهاليوم":(isRange()?"ما فيه ملاحظات لهالفترة":"ما فيه ملاحظات لهالشهر للحين"))+'</div>';
 }
 function li(i,title,sub,val){return '<div class="li"><span class="n">'+(i+1)+'</span><span class="t"><b>'+esc(title)+'</b>'+(sub?'<small>'+esc(sub)+'</small>':"")+'</span><span class="val num">'+val+'</span></div>'}
 function renderLists(m){
@@ -712,7 +756,7 @@ let brChart=null;
 function drawBrands(m){
   brChart=kill(brChart);
   const b=m?(sallaFor(m.key).brands||[]):[],aj=b.find(x=>/أجمل|اجمل/.test(x.label)),all=b.find(x=>/كل المنتجات/.test(x.label));
-  $("brNote").textContent=(m?m.label+" · ":"")+"نسبة كل واحد من مبيعات المنتجات"+(state.period==="day"?" (للشهر كله)":"");
+  $("brNote").textContent=(m?m.label+" · ":"")+"نسبة كل واحد من مبيعات المنتجات"+(state.period!=="month"?" (للشهر كله)":"");
   if(!aj||!all||!all.sales||!chartOk()){$("brDonutC").innerHTML='<div><b>—</b><small>ما فيه بيانات</small></div>';$("brDonutL").innerHTML='<div class="empty" style="display:block">تظهر بعد تحديث سلة الجاي</div>';return}
   const ours=Math.max(0,all.sales-aj.sales),parts=[{n:"منتجاتنا",v:ours,u:all.units!=null&&aj.units!=null?all.units-aj.units:null,c:cssv("--brown")},{n:"منتجات أجمل",v:aj.sales,u:aj.units,c:cssv("--slate")}],tot=ours+aj.sales;
   brChart=new Chart($("brDonut"),{type:"doughnut",data:{labels:parts.map(x=>x.n),datasets:[{data:parts.map(x=>x.v),backgroundColor:parts.map(x=>x.c),borderColor:"#fff",borderWidth:3,hoverOffset:4}]},
@@ -850,7 +894,9 @@ function load(){
     (d.files||[]).forEach(f=>{state.files[f.id]=f;state.parsed[f.id]=parseFile(f,f.values)});
     ingestSalla(d.salla||{});state.lastAt=Date.now();state.sallaUpdated=d.sallaUpdated||null;state.errors={};
     if(!(d.files||[]).length)state.errors.files={code:"files",message:"ما فيه ملف اسمه «متابعة الإعلانات - الشهر السنة» في الدرايف"};
-    rebuildMonths();setNotice();render();
+    rebuildMonths();setNotice();
+    if(!state.booted){state.booted=true;const y=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-2));goDate(y.getUTCFullYear(),y.getUTCMonth()+1,y.getUTCDate(),"dby");return}
+    render();
   }).withFailureHandler(e=>{state.errors.load={code:"load",message:(e&&e.message)||String(e)};setNotice();renderStatus()}).getData();
 }
 let pullTimer=null;
@@ -880,7 +926,14 @@ function bind(){
   $("qYest").onclick=()=>{const y=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-1));goDate(y.getUTCFullYear(),y.getUTCMonth()+1,y.getUTCDate(),"yesterday")};
   $("qThis").onclick=()=>goMonth(TODAY.y,TODAY.m,"this");
   $("qLast").onclick=()=>{const d=new Date(Date.UTC(TODAY.y,TODAY.m-2,1));goMonth(d.getUTCFullYear(),d.getUTCMonth()+1,"last")};
-  $("pickDate").addEventListener("change",e=>{const v=/^(\d{4})-(\d{2})-(\d{2})$/.exec(e.target.value||"");if(v)goDate(+v[1],+v[2],+v[3],"pick")});
+  $("qDby").onclick=()=>{const y=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-2));goDate(y.getUTCFullYear(),y.getUTCMonth()+1,y.getUTCDate(),"dby")};
+  const onPick=()=>{const re=/^\d{4}-\d{2}-\d{2}$/;let f=$("pickFrom").value,t=$("pickTo").value;
+    if(re.test(f)&&!re.test(t)){t=f;$("pickTo").value=t}
+    if(!re.test(f)&&re.test(t)){f=t;$("pickFrom").value=f}
+    if(!re.test(f)||!re.test(t))return;
+    if(f>t){const x=f;f=t;t=x;$("pickFrom").value=f;$("pickTo").value=t}
+    if(f===t)goDate(+f.slice(0,4),+f.slice(5,7),+f.slice(8,10),"pick");else goRange(f,t)};
+  $("pickFrom").addEventListener("change",onPick);$("pickTo").addEventListener("change",onPick);
   $("vShort").onclick=()=>setView("short");$("vFull").onclick=()=>setView("full");
   $("cmpA").onchange=e=>{state.cmpA=e.target.value;renderCompare()};
   $("cmpB").onchange=e=>{state.cmpB=e.target.value;renderCompare()};
@@ -892,6 +945,12 @@ function goMonth(y,m,quick){
   else state.missing=mlabel(y,m);
   syncSeg();wireSalla();render();
 }
+function goRange(f,t){
+  const k=t.slice(0,7);state.quick="pick";state.period="range";state.from=f;state.to=t;state.day=null;
+  if(state.months.some(x=>x.key===k)){state.sel=k;state.missing=null;state.cmpA=k;const keys=state.months.map(x=>x.key),i=keys.indexOf(k);state.cmpB=i>0?keys[i-1]:(keys.find(x=>x!==k)||null)}
+  else state.missing=mlabel(+k.slice(0,4),+k.slice(5,7));
+  syncSeg();wireSalla();render();
+}
 function goDate(y,m,d,quick){
   const k=mkey(y,m);
   state.quick=quick;state.period="day";state.day=d;
@@ -901,7 +960,7 @@ function goDate(y,m,d,quick){
 }
 function setView(v){state.view=v;try{localStorage.setItem("adsView",v)}catch(e){}syncSeg();wireSalla();render()}
 function syncSeg(){
-  $("qToday").setAttribute("aria-pressed",state.quick==="today");$("qYest").setAttribute("aria-pressed",state.quick==="yesterday");$("qThis").setAttribute("aria-pressed",state.quick==="this");$("qLast").setAttribute("aria-pressed",state.quick==="last");
+  $("qToday").setAttribute("aria-pressed",state.quick==="today");$("qYest").setAttribute("aria-pressed",state.quick==="yesterday");$("qDby").setAttribute("aria-pressed",state.quick==="dby");$("qThis").setAttribute("aria-pressed",state.quick==="this");$("qLast").setAttribute("aria-pressed",state.quick==="last");
   $("pickWrap").classList.toggle("on",state.quick==="pick");
   $("vShort").setAttribute("aria-pressed",state.view!=="full");$("vFull").setAttribute("aria-pressed",state.view==="full");
   $("app").classList.toggle("compact",state.view!=="full");
