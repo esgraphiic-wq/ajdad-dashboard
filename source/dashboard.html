@@ -255,7 +255,7 @@ td.n{font-variant-numeric:tabular-nums;direction:ltr;text-align:left}
   </section>
 
   <section class="sec">
-    <div class="sec-h"><h2>ميزانية الصرف</h2><small id="bgNote">حسب الرواس المثبت للشهر، وثابتة حتى لو مختار يوم</small></div>
+    <div class="sec-h"><h2>ميزانية الصرف</h2><small id="bgNote">حسب رواس سلة للشهر (الأيام اللي عدّى عليها يومين)، وثابتة حتى لو مختار يوم</small></div>
     <div id="budget"></div>
   </section>
 
@@ -413,6 +413,25 @@ function aggPlat(list){
 function monthPlat(m){if(!m)return aggPlat([]);if(hasDaily(m))return aggPlat(m.days.filter(d=>d.has).map(d=>d.plat));return aggPlat(m.summary?[m.summary]:[])}
 function periodPlat(){const m=curMonth();if(!m)return aggPlat([]);if(state.period==="month")return monthPlat(m);const d=m.days.find(x=>x.d===state.day);return aggPlat(d&&d.has?[d.plat]:[])}
 function sallaFor(key){return state.salla[key]||{}}
+/* رواس سلة المستقر: مبيعات سلة ÷ صرف الإعلانات، على الأيام اللي عدّى عليها يومين بس
+   (عبد الله بيسجل صرف اليوم بالليل، ومبيعات سلة بتاخد يوم أو يومين لحد ما تثبت). */
+const SETTLE_DAYS=2;
+function cutoffKey(){const t=new Date(Date.UTC(TODAY.y,TODAY.m-1,TODAY.d-SETTLE_DAYS));return t.toISOString().slice(0,10)}
+function settledRoas(m){
+  if(!m)return null;const cut=cutoffKey(),n=new Date(m.y,m.m,0).getDate(),pre=mkey(m.y,m.m)+"-";
+  const endKey=pre+pad(n),full=endKey<=cut,upTo=full?n:(cut.startsWith(pre)?+cut.slice(8,10):0);
+  if(!upTo)return{roas:null,upTo:0,full:false};
+  let spend=null;
+  if(hasDaily(m)){spend=0;m.days.forEach(d=>{if(d.has&&d.d<=upTo)spend+=PLATS.reduce((t,p)=>t+(d.plat[p.key].spend||0),0)})}
+  else if(full){const mp=monthPlat(m);spend=mp.anyPlat?mp.spend:null}
+  const sl=sallaFor(m.key);let sales=null;
+  const rows=(sl.daily||[]).filter(r=>String(r.period).startsWith(pre)&&+String(r.period).slice(8,10)<=upTo);
+  if(rows.length)sales=rows.reduce((t,r)=>t+(+r.sales||0),0);
+  else if(full&&sl.summary)sales=sl.summary.sales;
+  return{roas:div(sales,spend),sales:sales,spend:spend,upTo:upTo,full:full};
+}
+function settledNote(r,m){if(!r||!r.upTo)return"لسه ما فيه أيام مستقرة";return r.full?"الشهر كامل":"لحد "+r.upTo+" "+(m?m.label.split(" ")[0]:"")+" · بعد يومين من كل يوم"}
+
 function periodRange(){const m=curMonth();if(!m)return null;if(state.period==="month")return monthRange(m.y,m.m);const d=m.key+"-"+pad(state.day);return{from:d,to:d}}
 const rkey=r=>r.from+"|"+r.to;
 function periodFunnel(){const r=periodRange();return r?state.funnel[rkey(r)]||null:null}
@@ -473,10 +492,12 @@ function spark(vals,color,hi){
 }
 function renderSales(s,a){
   const el=$("salesTiles");
-  const roas=s&&s.sales!=null&&a.anyPlat?div(s.sales,a.spend):null;
+  const m0=curMonth();let roas=null,roasSub="مبيعات سلة ÷ صرف الإعلانات";
+  if(state.period==="month"){const r=settledRoas(m0);roas=r?r.roas:null;roasSub="مبيعات سلة ÷ الصرف · "+settledNote(r,m0)}
+  else{roas=s&&s.sales!=null&&a.anyPlat?div(s.sales,a.spend):null;if(m0&&(m0.key+"-"+pad(state.day))>cutoffKey())roasSub+=" · لسه مش نهائي (يثبت بعد يومين)"}
   const ser=monthSeries(curMonth()),hi=state.period==="day"&&ser?ser.days.indexOf(state.day):null,sp=(k,c)=>ser?spark(ser[k],c,hi>=0?hi:null):"";
   const spendT=tile("صرف الإعلانات",a.anyPlat?fMoney(a.spend)+" ر.س":"—","plat",a.anyPlat?"كل المنصات":"للحين ما انكتب في ملف الشهر","","",sp("spend",cssv("--slate")));
-  const roasT=tile("الرواس ROAS",fX(roas),"calc","مبيعات سلة ÷ صرف الإعلانات","hero",roas==null?"":(roas>=1?"good":"bad"),sp("roas","#fff"));
+  const roasT=tile("الرواس ROAS",fX(roas),"calc",roasSub,"hero",roas==null?"":(roas>=1?"good":"bad"),sp("roas","#fff"));
   if(!s){el.innerHTML='<div class="tile"><span class="k">مبيعات سلة</span><span class="v">…</span><span class="s">جاري جلب الأرقام من المتجر</span></div>'+spendT;return}
   el.innerHTML=[
     tile("المبيعات",fMoney(s.sales)+" ر.س","salla",state.period==="day"?"مبيعات اليوم":"إجمالي الشهر في سلة","brand","",sp("sales","#fff")),
@@ -595,7 +616,7 @@ let budChart=null;
 function renderBudget(m){
   const el=$("budget");budChart=kill(budChart);
   if(!m||!m.budget){el.innerHTML='<div class="tg"><span class="k">ما فيه ميزانية لهالشهر</span><small class="s">اكتب السيناريوهات في جدول «ميزانية الشهر» فوق في ملف الشهر.</small></div>';return}
-  const sc=m.budget,mp=monthPlat(m),spent=mp.anyPlat?mp.spend:0,roas=mp.anyPlat?mp.roasConf:null;
+  const sc=m.budget,mp=monthPlat(m),spent=mp.anyPlat?mp.spend:0,sr=settledRoas(m),roas=sr?sr.roas:null;
   let act=sc[0];sc.forEach(x=>{if(roas!=null&&x.th!=null&&roas>=x.th&&x!==sc[0])act=x});
   const n=new Date(m.y,m.m,0).getDate(),cur=m.y===TODAY.y&&m.m===TODAY.m,past=(m.y*12+m.m)<(TODAY.y*12+TODAY.m);
   const dayIdx=cur?TODAY.d:(past?n:0),left=cur?n-TODAY.d+1:(past?0:n);
@@ -604,7 +625,7 @@ function renderBudget(m){
   const dayN=state.period==="day"?state.day:(cur?TODAY.d:null);const dd=dayN?m.days.find(x=>x.d===dayN):null;
   const daySpend=dd&&dd.has?PLATS.reduce((t,p)=>t+(dd.plat[p.key].spend||0),0):null;
   const next=sc.find(x=>x.th!=null&&x.amt>act.amt);
-  const hint=next?("لو الرواس المثبت وصل "+fX(next.th)+" الميزانية تطلع "+fMoney(next.amt)+" ر.س"+(roas!=null?" · الحين "+fX(roas):"")):(roas!=null?"أعلى سيناريو مفعّل · الرواس المثبت "+fX(roas):"");
+  const hint=next?("لو الرواس وصل "+fX(next.th)+" الميزانية تطلع "+fMoney(next.amt)+" ر.س"+(roas!=null?" · الحين "+fX(roas):"")):(roas!=null?"أعلى سيناريو مفعّل · الرواس "+fX(roas):"");
   el.innerHTML='<div class="bud"><div class="bud-top"><div class="scn">'+sc.map(x=>'<span class="'+(x===act?"on":"")+'">'+esc(x.name)+(x.th!=null?" · من "+fX(x.th):"")+" · "+fMoney(x.amt)+' ر.س</span>').join("")+'</div><span class="bud-hint">'+esc(hint)+'</span></div>'+
     '<div><div class="bar"><i class="'+(pct>1?"over":"")+'" style="width:'+Math.min(100,pct*100).toFixed(1)+'%"></i>'+(dayIdx>0?'<b style="right:'+Math.min(100,dayIdx/n*100).toFixed(1)+'%" title="المفروض لين اليوم"></b>':"")+'</div>'+
     '<div class="bar-l"><span>'+fMoney(spent)+' من '+fMoney(act.amt)+' ر.س ('+fPct(pct,0)+')</span><span>الخط الأسود = المفروض لين اليوم '+(dayIdx>0?'<span class="num">'+fMoney(pace)+'</span>':"")+'</span></div></div>'+
@@ -632,7 +653,7 @@ function renderTargets(m){
   const t=m.targets||{},p=monthPlat(m),s=sallaFor(m.key).summary,pr=monthProgress(m);
   const items=[
     {k:"المبيعات المثبتة",t:t.conf,v:p.anyPlat?p.conf:null,f:v=>fMoney(v)+" ر.س"},
-    {k:"الرواس المثبت ROAS",t:t.roasConf,v:p.anyPlat?p.roasConf:null,f:fX,ratio:true}
+    {k:"الرواس ROAS (سلة ÷ الصرف)",t:t.roasConf,v:(settledRoas(m)||{}).roas??null,f:fX,ratio:true}
   ].filter(x=>x.t);
   if(!items.length){el.innerHTML='<div class="tg"><span class="k">ما فيه تارجت لهالشهر</span><small>اكتب التارجت في جدول «تارجت الشهر» فوق في ملف '+esc(m.label)+'، ويطلع هنا تلقائي.</small></div>';$("tgNote").textContent="";return}
   let ok=0;
